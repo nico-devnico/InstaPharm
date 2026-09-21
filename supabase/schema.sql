@@ -315,35 +315,10 @@ exception
 end $$;
 
 -- -----------------------------------------------------------------------------
--- 13. DONNÉES INITIALES — médicaments Cameroun
+-- 13. Médicaments : AJOUTÉS UNIQUEMENT par les pharmacies (pas de catalogue seed)
 -- -----------------------------------------------------------------------------
-insert into public.medicines (name, brand, dosage, form, category, requires_prescription, price_xaf, description)
-select * from (values
-  ('Paracétamol', 'Paracetamol Denk', '500 mg', 'Comprimé', 'Antalgique', false, 1500, 'Douleur et fièvre'),
-  ('Paracétamol', 'Doliprane', '1 g', 'Comprimé', 'Antalgique', false, 2500, null::text),
-  ('Ibuprofène', 'Ibuprofen CIPLA', '400 mg', 'Comprimé', 'AINS', false, 2000, null),
-  ('Amoxicilline', 'Amoxil', '500 mg', 'Gélule', 'Antibiotique', true, 3500, null),
-  ('Artémether / Luméfantrine', 'Coartem', '20/120 mg', 'Comprimé', 'Antipaludéen', true, 4500, 'Paludisme non compliqué'),
-  ('Sels de réhydratation orale', 'ORS UNICEF', 'Sachet', 'Poudre', 'Réhydratation', false, 500, null),
-  ('Artésunate', 'Artesun', '60 mg', 'Injectable', 'Antipaludéen', true, 8000, null),
-  ('Métronidazole', 'Flagyl', '250 mg', 'Comprimé', 'Antiparasitaire', true, 1800, null),
-  ('Vitamine C', 'Cevita', '500 mg', 'Comprimé', 'Vitamine', false, 1200, null),
-  ('Zinc', 'Zincatil', '20 mg', 'Comprimé', 'Complément', false, 1000, null),
-  ('Salbutamol', 'Ventoline', '100 µg', 'Aérosol', 'Respiratoire', true, 5500, null),
-  ('Moustiquaire imprégnée', 'Permanet', '1 unité', 'Accessoire', 'Prévention', false, 3500, null)
-) as v(name, brand, dosage, form, category, requires_prescription, price_xaf, description)
-where not exists (
-  select 1 from public.medicines m
-  where m.name = v.name and coalesce(m.brand,'') = coalesce(v.brand,'')
-    and coalesce(m.dosage,'') = coalesce(v.dosage,'')
-);
-
--- Livreur initial
-insert into public.couriers (full_name, phone, is_available)
-select 'Jean Mbarga', '+237699123456', true
-where not exists (
-  select 1 from public.couriers where phone = '+237699123456'
-);
+-- Les inserts de médicaments de démonstration ont été retirés.
+-- Utilisez supabase/cleanup_seed_medicines.sql pour purger d’anciennes données.
 
 -- =============================================================================
 -- 14. HISTORIQUE + NOTIFICATIONS

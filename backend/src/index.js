@@ -71,10 +71,18 @@ const server = app.listen(config.port, () => {
 
 // Expiration périodique des réservations (toutes les 5 min)
 const EXPIRE_MS = 5 * 60 * 1000;
+let expireWarnOnce = false;
 const expireTimer = setInterval(() => {
   reservationService.expireStale().catch((err) => {
-    // eslint-disable-next-line no-console
-    console.warn('expire_stale_reservations:', err.message);
+    if (!expireWarnOnce) {
+      expireWarnOnce = true;
+      // eslint-disable-next-line no-console
+      console.warn(
+        'expire_stale_reservations:',
+        err.message,
+        '\n→ Vérifiez DATABASE_URL dans backend/.env (URI Pooler IPv4 depuis Supabase → Settings → Database).',
+      );
+    }
   });
 }, EXPIRE_MS);
 

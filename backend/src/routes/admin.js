@@ -73,6 +73,19 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
+router.delete('/users/:id', async (req, res) => {
+  try {
+    const data = await adminService.deleteUser(
+      req.user.id,
+      req.params.id,
+      clientIp(req),
+    );
+    return res.json(data);
+  } catch (err) {
+    return handle(err, res);
+  }
+});
+
 router.get('/pharmacies', async (req, res) => {
   try {
     return res.json(await adminService.listPharmacies(req.user.id, req.query));

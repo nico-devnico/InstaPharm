@@ -219,16 +219,31 @@ class AdminRepository {
 
   Future<void> updateUser(String id, Map<String, dynamic> patch) async {
     await _ensureNotSuperAdminTarget(id, patch);
-    final api = await _api('PATCH', '/api/admin/users/$id', body: patch);
-    if (api != null) {
-      await _audit('UPDATE_USER', 'profile', id, patch);
-      return;
+
+    // Toujours écrire dans Supabase (source de vérité).
+    final cleaned = Map<String, dynamic>.from(patch)
+      ..removeWhere((k, v) => v == null && k != 'disabled_reason');
+    cleaned['updated_at'] = DateTime.now().toIso8601String();
+
+    final rows = await _db
+        .from('profiles')
+        .update(cleaned)
+        .eq('id', id)
+        .select('id, email, role, is_active, full_name, phone');
+
+    final list = rows as List;
+    if (list.isEmpty) {
+      throw Exception(
+        'Mise à jour refusée ou aucune ligne modifiée (RLS / id inconnu).',
+      );
     }
-    await _db.from('profiles').update({
-      ...patch,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', id);
-    await _audit('UPDATE_USER', 'profile', id, patch);
+
+    // API Node optionnelle (sync) — n’empêche jamais l’écriture Supabase.
+    try {
+      await _api('PATCH', '/api/admin/users/$id', body: patch);
+    } catch (_) {}
+
+    await _audit('UPDATE_USER', 'profile', id, cleaned);
   }
 
   Future<void> _ensureNotSuperAdminTarget(
@@ -329,13 +344,28 @@ class AdminRepository {
         'Compte super-admin protégé : suppression interdite.',
       );
     }
-    final api = await _api('DELETE', '/api/admin/users/$id');
-    if (api != null) {
-      await _audit('DELETE_USER', 'profile', id, {'via': 'api'});
-      return;
+
+    // 1) API Node (hard delete via service role) si dispo
+    try {
+      final api = await _api('DELETE', '/api/admin/users/$id');
+      if (api != null && api['ok'] != false) {
+        await _audit('DELETE_USER', 'profile', id, {'hard': true, 'via': 'api'});
+        return;
+      }
+    } catch (_) {}
+
+    // 2) RPC Supabase (hard delete profil + auth.users)
+    final rpc = await _db.rpc('admin_delete_user', params: {
+      'p_user_id': id,
+    });
+    if (rpc is Map && rpc['ok'] == false) {
+      throw Exception(
+        rpc['message']?.toString() ??
+            rpc['error']?.toString() ??
+            'Suppression refusée',
+      );
     }
-    await suspendUser(id, reason: 'Supprimé par admin');
-    await _audit('DELETE_USER', 'profile', id, {'soft': true});
+    await _audit('DELETE_USER', 'profile', id, {'hard': true, 'via': 'rpc'});
   }
 
   Future<void> deleteCourier(String id) async {

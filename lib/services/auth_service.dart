@@ -87,6 +87,18 @@ class AuthService {
     return AppUser.fromJson(row);
   }
 
+  Future<void> deleteMyAccount() async {
+    final rpc = await _db.rpc('delete_my_account');
+    if (rpc is Map && rpc['ok'] == false) {
+      throw Exception(
+        rpc['message']?.toString() ??
+            rpc['error']?.toString() ??
+            'Suppression refusée',
+      );
+    }
+    await signOut();
+  }
+
   Future<void> updateProfile({
     String? fullName,
     String? phone,

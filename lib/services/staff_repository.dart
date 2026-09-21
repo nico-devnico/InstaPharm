@@ -150,21 +150,10 @@ class StaffRepository {
   }
 
   Future<void> setRole(String role) async {
-    final uid = _db.auth.currentUser?.id;
-    if (uid == null) throw Exception('Non connecté');
-    if (role == 'admin') {
-      throw Exception(
-        'Le rôle administrateur s\'attribue via la sécurisation backend '
-        '(premier compte ou console admin).',
-      );
-    }
-    if (!['patient', 'pharmacist', 'courier'].contains(role)) {
-      throw Exception('Rôle invalide');
-    }
-    await _db.from('profiles').update({
-      'role': role,
-      'updated_at': DateTime.now().toIso8601String(),
-    }).eq('id', uid);
+    throw Exception(
+      'Le changement de rôle libre est désactivé. '
+      'Pharmacien / livreur : inscription + validation admin.',
+    );
   }
 
   /// Première promotion admin (si aucun admin n'existe encore).

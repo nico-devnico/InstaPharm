@@ -9,9 +9,15 @@ function getPool() {
     if (!config.databaseUrl) {
       throw new Error('DATABASE_URL manquant — requis pour les transactions stock');
     }
+    // Supabase (direct ou pooler) : SSL requis, certificat souvent non vérifiable en local
+    const isSupabase = /supabase\.(co|com)/i.test(config.databaseUrl);
     pool = new Pool({
-      connectionString: config.databaseUrl,
-      ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : undefined,
+      connectionString: config.databaseUrl
+        .replace(/[?&]sslmode=[^&]*/gi, '')
+        .replace(/\?$/, ''),
+      ssl: isSupabase || config.nodeEnv === 'production'
+        ? { rejectUnauthorized: false }
+        : undefined,
       max: 10,
     });
   }

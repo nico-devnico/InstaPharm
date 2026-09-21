@@ -5,7 +5,6 @@ import '../core/theme/app_typography.dart';
 import '../providers/auth_provider.dart';
 import '../providers/preferences_provider.dart';
 import '../services/auth_service.dart';
-import '../services/staff_repository.dart';
 import '../services/supabase_service.dart';
 import '../services/verification_docs_service.dart';
 import '../widgets/document_drop_button.dart';
@@ -123,6 +122,14 @@ class ProfileScreen extends ConsumerWidget {
                     ref.invalidate(profileProvider);
                   },
                 ),
+                _divider(),
+                _tile(
+                  icon: Icons.delete_forever_rounded,
+                  title: 'Supprimer mon compte',
+                  subtitle: 'Efface définitivement vos données',
+                  titleColor: AppColors.error,
+                  onTap: () => _confirmDeleteAccount(context, ref),
+                ),
               ] else
                 _tile(
                   icon: Icons.login_rounded,
@@ -133,29 +140,6 @@ class ProfileScreen extends ConsumerWidget {
                     color: AppColors.textTertiary,
                   ),
                 ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          _sectionTitle('Mode application'),
-          const SizedBox(height: 10),
-          _section(
-            children: [
-              _tile(
-                icon: Icons.swap_horiz_rounded,
-                title: 'Changer de rôle',
-                subtitle: authenticated
-                    ? (profile?.isPharmacist == true
-                        ? 'Pharmacien'
-                        : profile?.isCourier == true
-                            ? 'Livreur'
-                            : 'Patient')
-                    : 'Connectez-vous',
-                trailing: const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textTertiary),
-                onTap: authenticated
-                    ? () => _showRolePicker(context, ref)
-                    : null,
-              ),
             ],
           ),
           const SizedBox(height: 22),
@@ -196,85 +180,44 @@ class ProfileScreen extends ConsumerWidget {
   }
 }
 
-Future<void> _showRolePicker(BuildContext context, WidgetRef ref) async {
-  final choice = await showModalBottomSheet<String>(
+Future<void> _confirmDeleteAccount(BuildContext context, WidgetRef ref) async {
+  final ok = await showDialog<bool>(
     context: context,
-    builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Choisir mon espace',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_rounded),
-            title: const Text('Patient'),
-            onTap: () => Navigator.pop(ctx, 'patient'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_pharmacy_rounded),
-            title: const Text('Pharmacien'),
-            onTap: () => Navigator.pop(ctx, 'pharmacist'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.two_wheeler_rounded),
-            title: const Text('Livreur'),
-            onTap: () => Navigator.pop(ctx, 'courier'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.admin_panel_settings_rounded),
-            title: const Text('Devenir administrateur'),
-            subtitle: const Text(
-              'Uniquement si aucun admin n’existe encore',
-              style: TextStyle(fontSize: 12),
-            ),
-            onTap: () => Navigator.pop(ctx, 'bootstrap_admin'),
-          ),
-          const SizedBox(height: 8),
-        ],
+    builder: (ctx) => AlertDialog(
+      title: const Text('Supprimer mon compte'),
+      content: const Text(
+        'Cette action est définitive : votre profil et vos données liées '
+        'seront effacés. Continuer ?',
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          child: const Text('Supprimer'),
+        ),
+      ],
     ),
   );
-  if (choice == null) return;
-  if (choice == 'bootstrap_admin') {
-    try {
-      final result = await StaffRepository.instance.claimBootstrapAdmin();
-      if (result['ok'] != true) {
-        final err = result['error']?.toString() ?? 'Échec';
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                err == 'ADMIN_EXISTS'
-                    ? 'Un administrateur existe déjà. Demandez une promotion.'
-                    : 'Impossible : $err',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      ref.invalidate(profileProvider);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vous êtes maintenant administrateur.')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e')),
-        );
-      }
+  if (ok != true) return;
+  try {
+    await AuthService.instance.deleteMyAccount();
+    ref.invalidate(profileProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Compte supprimé')),
+      );
     }
-    return;
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    }
   }
-  await StaffRepository.instance.setRole(choice);
-  ref.invalidate(profileProvider);
 }
 
 class _UserCard extends StatelessWidget {

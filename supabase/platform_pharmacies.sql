@@ -144,26 +144,5 @@ where not exists (
   select 1 from public.pharmacies p where p.id = v.id
 );
 
--- Remplir l’inventaire de chaque pharmacie plateforme pour les médicaments seed
-insert into public.inventory (pharmacy_id, medicine_id, status, quantity, unit_price_xaf)
-select
-  ph.id,
-  m.id,
-  case
-    when (hashtext(ph.id || m.id::text) % 11) = 0 then 'out_of_stock'
-    when (hashtext(ph.id || m.id::text) % 7) = 0 then 'low_stock'
-    else 'available'
-  end,
-  case
-    when (hashtext(ph.id || m.id::text) % 11) = 0 then 0
-    when (hashtext(ph.id || m.id::text) % 7) = 0 then 5 + (abs(hashtext(m.id::text)) % 8)
-    else 15 + (abs(hashtext(ph.id || m.name)) % 40)
-  end,
-  coalesce(m.price_xaf, 1000) + (abs(hashtext(ph.id)) % 500)
-from public.pharmacies ph
-cross join public.medicines m
-where ph.is_platform = true
-  and not exists (
-    select 1 from public.inventory i
-    where i.pharmacy_id = ph.id and i.medicine_id = m.id
-  );
+-- Plus de seed automatique d’inventaire / médicaments fictifs.
+-- Les stocks sont ajoutés uniquement par les pharmacies inscrites (app pharmacien).

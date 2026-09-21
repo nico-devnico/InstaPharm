@@ -27,7 +27,8 @@ class OpeningHour extends Equatable {
       'Samedi',
       'Dimanche',
     ];
-    return days[dayOfWeek % 7];
+    final i = dayOfWeek % 7;
+    return days[i < 0 ? i + 7 : i];
   }
 
   String get display {
@@ -41,13 +42,28 @@ class OpeningHour extends Equatable {
   }
 
   factory OpeningHour.fromJson(Map<String, dynamic> json) {
+    int day = 0;
+    final rawDay = json['day_of_week'] ?? json['day'];
+    if (rawDay is num) {
+      day = rawDay.toInt();
+    } else if (rawDay != null) {
+      day = int.tryParse(rawDay.toString()) ?? 0;
+    }
+    bool closed = false;
+    final rawClosed = json['is_closed'];
+    if (rawClosed is bool) {
+      closed = rawClosed;
+    } else if (rawClosed is num) {
+      closed = rawClosed != 0;
+    }
+
     return OpeningHour(
-      dayOfWeek: (json['day_of_week'] as int?) ?? json['day'] as int? ?? 0,
-      openTime: json['open_time'] as String?,
-      closeTime: json['close_time'] as String?,
-      isClosed: (json['is_closed'] as bool?) ?? false,
-      breakStart: json['break_start'] as String?,
-      breakEnd: json['break_end'] as String?,
+      dayOfWeek: day,
+      openTime: json['open_time']?.toString(),
+      closeTime: json['close_time']?.toString(),
+      isClosed: closed,
+      breakStart: json['break_start']?.toString(),
+      breakEnd: json['break_end']?.toString(),
     );
   }
 

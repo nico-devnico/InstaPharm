@@ -68,21 +68,33 @@ class OrderRepository {
   }
 
   Future<List<Medicine>> searchMedicines(String query) async {
-    if (query.trim().isEmpty) {
-      final rows = await _db.from('medicines').select().limit(40);
-      return (rows as List)
-          .map((e) => Medicine.fromJson(_medicineMap(e)))
-          .toList();
+    // Uniquement médicaments présents en stock chez une pharmacie plateforme
+    try {
+      dynamic q = _db
+          .from('medicines')
+          .select(
+            '*, inventory!inner(pharmacy_id, pharmacies!inner(is_platform, is_active))',
+          )
+          .eq('inventory.pharmacies.is_platform', true)
+          .eq('inventory.pharmacies.is_active', true);
+      if (query.trim().isNotEmpty) {
+        final t = query.trim();
+        q = q.or('name.ilike.%$t%,brand.ilike.%$t%,category.ilike.%$t%');
+      }
+      final rows = await q.limit(60);
+      final seen = <String>{};
+      final list = <Medicine>[];
+      for (final raw in rows as List) {
+        final e = Map<String, dynamic>.from(raw as Map);
+        final id = e['id']?.toString() ?? '';
+        if (id.isEmpty || !seen.add(id)) continue;
+        list.add(Medicine.fromJson(_medicineMap(e)));
+      }
+      return list;
+    } catch (_) {
+      // Fallback si jointure indisponible : catalogue vide plutôt que seeds
+      return const [];
     }
-    final q = query.trim();
-    final rows = await _db
-        .from('medicines')
-        .select()
-        .or('name.ilike.%$q%,brand.ilike.%$q%,category.ilike.%$q%')
-        .limit(30);
-    return (rows as List)
-        .map((e) => Medicine.fromJson(_medicineMap(e)))
-        .toList();
   }
 
   Map<String, dynamic> _medicineMap(Map<String, dynamic> e) => {

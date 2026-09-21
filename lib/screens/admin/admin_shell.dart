@@ -5,7 +5,6 @@ import '../../core/theme/app_typography.dart';
 import '../../core/utils/responsive.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/admin_repository.dart';
-import '../profile_screen.dart';
 import 'admin_approvals_page.dart';
 import 'admin_audit_page.dart';
 import 'admin_couriers_page.dart';
@@ -14,6 +13,7 @@ import 'admin_medicines_page.dart';
 import 'admin_orders_page.dart';
 import 'admin_pharmacies_page.dart';
 import 'admin_pharmacy_map_page.dart';
+import 'admin_profile_page.dart';
 import 'admin_reports_page.dart';
 import 'admin_settings_page.dart';
 import 'admin_stocks_page.dart';
@@ -181,7 +181,7 @@ class _AdminShellState extends ConsumerState<AdminShell> {
       case AdminSection.audit:
         return const AdminAuditPage();
       case AdminSection.profile:
-        return const ProfileScreen();
+        return const AdminProfilePage();
     }
   }
 

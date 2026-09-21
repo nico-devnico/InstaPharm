@@ -338,9 +338,9 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
       } else if (action == 'delete') {
         final ok = await confirmAdminAction(
           context,
-          title: 'Supprimer',
+          title: 'Supprimer l’utilisateur',
           message:
-              'Désactiver définitivement ce compte (suppression soft) ?',
+              'Effacer définitivement ce compte de la base Supabase (irréversible) ?',
           destructive: true,
           confirmLabel: 'Supprimer',
         );
@@ -509,7 +509,8 @@ class _UserDetailSheetState extends ConsumerState<_UserDetailSheet> {
     final ok = await confirmAdminAction(
       context,
       title: 'Supprimer',
-      message: 'Désactiver définitivement ce compte ?',
+      message:
+          'Effacer définitivement ce compte de la base Supabase (irréversible) ?',
       destructive: true,
       confirmLabel: 'Supprimer',
     );

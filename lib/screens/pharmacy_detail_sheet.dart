@@ -8,6 +8,7 @@ import '../models/pharmacy.dart';
 import '../models/medicine.dart';
 import '../models/enums.dart';
 import '../services/order_repository.dart';
+import '../services/platform_pharmacy_repository.dart';
 import '../services/supabase_service.dart';
 import '../widgets/pharmacy_action_bar.dart';
 import '../widgets/status_badges.dart';
@@ -20,6 +21,8 @@ class PharmacyDetailSheet extends StatefulWidget {
   final StockStatus? stockStatus;
   final DateTime? lastStockUpdate;
   final bool initiallyShowRoute;
+  /// Page plein écran (pas de modal) — évite l’overlay transparent collé.
+  final bool asPage;
 
   const PharmacyDetailSheet({
     super.key,
@@ -28,6 +31,7 @@ class PharmacyDetailSheet extends StatefulWidget {
     this.stockStatus,
     this.lastStockUpdate,
     this.initiallyShowRoute = false,
+    this.asPage = false,
   });
 
   @override
@@ -87,22 +91,177 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
 
   @override
   Widget build(BuildContext context) {
+    try {
+      return _buildBody(context);
+    } catch (e, st) {
+      debugPrint('PharmacyDetailSheet crash: $e\n$st');
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('Pharmacie'),
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+                const SizedBox(height: 12),
+                Text(
+                  widget.pharmacy.name.isEmpty
+                      ? 'Impossible d’afficher cette pharmacie'
+                      : widget.pharmacy.name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Une erreur d’affichage est survenue. Réessayez.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildBody(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final pad = MediaQuery.paddingOf(context);
     final isNarrow = size.width < 380;
     final isPhone = Responsive.isPhone(context);
 
-    // Hauteur adaptée au conteneur (sheet / dialog) — jamais plein écran opaque « vide ».
-    final preferred = size.height * (isPhone ? 0.88 : 0.82);
-    final sheetHeight = preferred.clamp(280.0, size.height - pad.top - 12);
-
     final mapMin = isNarrow ? 120.0 : 140.0;
-    final mapMax = isPhone ? 200.0 : 240.0;
-    var mapHeight = sheetHeight * 0.24;
+    final mapMax = isPhone ? 220.0 : 260.0;
+    var mapHeight = size.height * (widget.asPage ? 0.22 : 0.24);
     if (mapHeight < mapMin) mapHeight = mapMin;
     if (mapHeight > mapMax) mapHeight = mapMax;
-    if (mapHeight > sheetHeight * 0.35) mapHeight = sheetHeight * 0.35;
 
+    final contentChildren = <Widget>[
+      _buildHeader(isNarrow),
+      const SizedBox(height: 12),
+      _buildRouteSummary(isNarrow),
+      const SizedBox(height: 12),
+      Align(
+        alignment: Responsive.useCompactControls(context)
+            ? Alignment.centerLeft
+            : Alignment.center,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: Responsive.useCompactControls(context)
+                ? 220
+                : double.infinity,
+          ),
+          child: SizedBox(
+            width: Responsive.useCompactControls(context)
+                ? null
+                : double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _openRoutePage,
+              icon: const Icon(Icons.map_rounded, size: 18),
+              label: const Text('Voir l’itinéraire'),
+              style: OutlinedButton.styleFrom(
+                padding: Responsive.actionButtonPadding(context),
+              ),
+            ),
+          ),
+        ),
+      ),
+      if (widget.medicine != null && widget.stockStatus != null) ...[
+        const SizedBox(height: 12),
+        _buildStockCard(isNarrow),
+      ],
+      const SizedBox(height: 12),
+      _buildInfoCard(isNarrow),
+      const SizedBox(height: 12),
+      _buildHoursCard(isNarrow),
+      const SizedBox(height: 12),
+      _buildServicesCard(isNarrow),
+      const SizedBox(height: 8),
+      _buildReportLink(isNarrow),
+      const SizedBox(height: 8),
+    ];
+
+    final scroll = CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(child: _buildMap(mapHeight, isNarrow)),
+        SliverPadding(
+          padding: EdgeInsets.fromLTRB(
+            Responsive.padH(context),
+            12,
+            Responsive.padH(context),
+            16,
+          ),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate(contentChildren),
+          ),
+        ),
+      ],
+    );
+
+    if (widget.asPage) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          foregroundColor: AppColors.textPrimary,
+          elevation: 0,
+          leading: IconButton(
+            tooltip: 'Fermer',
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          title: Text(
+            widget.pharmacy.name.isEmpty
+                ? 'Pharmacie'
+                : widget.pharmacy.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+        ),
+        body: ColoredBox(
+          color: AppColors.background,
+          child: Column(
+            children: [
+              Expanded(
+                child: DefaultTextStyle(
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                  ),
+                  child: scroll,
+                ),
+              ),
+              Material(
+                color: AppColors.surface,
+                elevation: 8,
+                child: _buildBottomActions(isNarrow),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final preferred = size.height * (isPhone ? 0.88 : 0.82);
+    final sheetHeight = preferred.clamp(280.0, size.height - pad.top - 12);
     return SizedBox(
       height: sheetHeight,
       width: double.infinity,
@@ -113,70 +272,7 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
         child: Column(
           children: [
             _buildHandle(),
-            Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  SliverToBoxAdapter(child: _buildMap(mapHeight, isNarrow)),
-                  SliverPadding(
-                    padding: EdgeInsets.fromLTRB(
-                      Responsive.padH(context),
-                      12,
-                      Responsive.padH(context),
-                      16,
-                    ),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
-                        _buildHeader(isNarrow),
-                        const SizedBox(height: 12),
-                        _buildRouteSummary(isNarrow),
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Responsive.useCompactControls(context)
-                              ? Alignment.centerLeft
-                              : Alignment.center,
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              maxWidth: Responsive.useCompactControls(context)
-                                  ? 220
-                                  : double.infinity,
-                            ),
-                            child: SizedBox(
-                              width: Responsive.useCompactControls(context)
-                                  ? null
-                                  : double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _openRoutePage,
-                                icon: const Icon(Icons.map_rounded, size: 18),
-                                label: const Text('Voir l’itinéraire'),
-                                style: OutlinedButton.styleFrom(
-                                  padding: Responsive.actionButtonPadding(
-                                    context,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (widget.medicine != null &&
-                            widget.stockStatus != null) ...[
-                          const SizedBox(height: 12),
-                          _buildStockCard(isNarrow),
-                        ],
-                        const SizedBox(height: 12),
-                        _buildInfoCard(isNarrow),
-                        const SizedBox(height: 12),
-                        _buildHoursCard(isNarrow),
-                        const SizedBox(height: 12),
-                        _buildServicesCard(isNarrow),
-                        const SizedBox(height: 8),
-                        _buildReportLink(isNarrow),
-                        const SizedBox(height: 8),
-                      ]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Expanded(child: scroll),
             _buildBottomActions(isNarrow),
           ],
         ),
@@ -804,22 +900,42 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
   }
 
   Future<void> _orderMedicine() async {
-    var medicine = widget.medicine;
-    if (medicine == null) {
-      final meds = await OrderRepository.instance.searchMedicines('');
-      if (meds.isEmpty || !mounted) return;
-      medicine = meds.first;
-    }
-    final order = await OrderCheckoutSheet.show(
-      context,
-      pharmacy: widget.pharmacy,
-      medicine: medicine,
-      unitPriceXaf: medicine.priceXaf,
-    );
-    if (order != null && mounted) {
-      Navigator.of(context).pop();
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => OrderTrackingScreen(order: order)),
+    try {
+      var medicine = widget.medicine;
+      if (medicine == null) {
+        // Médicaments réellement en stock dans cette pharmacie (pas le catalogue seed)
+        final lines = await PlatformPharmacyRepository.instance
+            .getPharmacyInventory(widget.pharmacy.id);
+        if (!mounted) return;
+        if (lines.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Aucun médicament en stock pour cette pharmacie. '
+                'Recherchez un produit depuis l’onglet Recherche.',
+              ),
+            ),
+          );
+          return;
+        }
+        medicine = lines.first.medicine;
+      }
+      final order = await OrderCheckoutSheet.show(
+        context,
+        pharmacy: widget.pharmacy,
+        medicine: medicine,
+        unitPriceXaf: medicine.priceXaf,
+      );
+      if (order != null && mounted) {
+        Navigator.of(context).pop();
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => OrderTrackingScreen(order: order)),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Commande : $e')),
       );
     }
   }

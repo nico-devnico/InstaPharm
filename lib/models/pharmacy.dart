@@ -67,45 +67,116 @@ class Pharmacy extends Equatable {
   }
 
   factory Pharmacy.fromJson(Map<String, dynamic> json) {
-    return Pharmacy(
-      id: json['id'] as String? ?? json['uuid'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      imageUrl: json['image_url'] as String? ?? json['photo_url'] as String?,
-      address: json['address'] as String?,
-      city: json['city'] as String?,
-      postalCode: json['postal_code'] as String? ?? json['zip_code'] as String?,
-      coordinates: json['coordinates'] != null
-          ? Coordinates.fromJson(
-              json['coordinates'] as Map<String, dynamic>)
-          : (json['latitude'] != null && json['longitude'] != null
-              ? Coordinates(
-                  latitude: (json['latitude'] as num).toDouble(),
-                  longitude: (json['longitude'] as num).toDouble(),
-                )
-              : null),
-      phone: json['phone'] as String? ?? json['phone_number'] as String?,
-      email: json['email'] as String?,
-      website: json['website'] as String?,
-      openingHours: (json['opening_hours'] as List<dynamic>?)
-          ?.map((e) => OpeningHour.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      rating: (json['rating'] as num?)?.toDouble(),
-      reviewCount: json['review_count'] as int? ?? json['reviews_count'] as int?,
-      isDuty: (json['is_duty'] as bool?) ?? json['duty'] as bool? ?? false,
-      isOpen: (json['is_open'] as bool?) ?? json['open'] as bool?,
-      distanceMeters: (json['distance_meters'] as num?)?.toDouble() ??
-          (json['distance'] as num?)?.toDouble(),
-      travelTimeSeconds: (json['travel_time_seconds'] as int?) ??
-          (json['travel_time'] as int?),
-      services: (json['services'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
-      isVerified: (json['is_verified'] as bool?) ??
-          json['verified'] as bool? ??
-          false,
-      isPlatform: json['is_platform'] as bool? ?? false,
-      ownerUserId: json['owner_user_id']?.toString(),
-    );
+    try {
+      return Pharmacy(
+        id: json['id']?.toString() ?? json['uuid']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        imageUrl:
+            json['image_url']?.toString() ?? json['photo_url']?.toString(),
+        address: json['address']?.toString(),
+        city: json['city']?.toString(),
+        postalCode:
+            json['postal_code']?.toString() ?? json['zip_code']?.toString(),
+        coordinates: Pharmacy._parseCoordinates(json),
+        phone: json['phone']?.toString() ?? json['phone_number']?.toString(),
+        email: json['email']?.toString(),
+        website: json['website']?.toString(),
+        openingHours: Pharmacy._parseOpeningHours(json['opening_hours']),
+        rating: Pharmacy._asDouble(json['rating']),
+        reviewCount: Pharmacy._asInt(json['review_count']) ??
+            Pharmacy._asInt(json['reviews_count']),
+        isDuty: Pharmacy._asBool(json['is_duty']) ??
+            Pharmacy._asBool(json['duty']) ??
+            false,
+        isOpen: Pharmacy._asBool(json['is_open']) ??
+            Pharmacy._asBool(json['open']),
+        distanceMeters: Pharmacy._asDouble(json['distance_meters']) ??
+            Pharmacy._asDouble(json['distance']),
+        travelTimeSeconds: Pharmacy._asInt(json['travel_time_seconds']) ??
+            Pharmacy._asInt(json['travel_time']),
+        services: Pharmacy._parseServices(json['services']),
+        isVerified: Pharmacy._asBool(json['is_verified']) ??
+            Pharmacy._asBool(json['verified']) ??
+            false,
+        isPlatform: Pharmacy._asBool(json['is_platform']) ?? false,
+        ownerUserId: json['owner_user_id']?.toString(),
+      );
+    } catch (_) {
+      // Jamais crasher l’UI (page blanche) sur un champ JSON mal typé
+      return Pharmacy(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? 'Pharmacie',
+        address: json['address']?.toString(),
+        city: json['city']?.toString(),
+        phone: json['phone']?.toString(),
+        isPlatform: Pharmacy._asBool(json['is_platform']) ?? false,
+      );
+    }
+  }
+
+  static Coordinates? _parseCoordinates(Map<String, dynamic> json) {
+    final raw = json['coordinates'];
+    if (raw is Map) {
+      final lat = _asDouble(raw['latitude'] ?? raw['lat']);
+      final lng = _asDouble(raw['longitude'] ?? raw['lng'] ?? raw['lon']);
+      if (lat != null && lng != null) {
+        return Coordinates(latitude: lat, longitude: lng);
+      }
+    }
+    final lat = _asDouble(json['latitude']);
+    final lng = _asDouble(json['longitude']);
+    if (lat != null && lng != null) {
+      return Coordinates(latitude: lat, longitude: lng);
+    }
+    return null;
+  }
+
+  static List<OpeningHour>? _parseOpeningHours(dynamic raw) {
+    if (raw == null) return null;
+    // jsonb objet / chaîne OSM → ignorer (évite cast crash → page blanche)
+    if (raw is! List) return null;
+    try {
+      return raw
+          .whereType<Map>()
+          .map((e) => OpeningHour.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<String>? _parseServices(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toList();
+    }
+    if (raw is String && raw.trim().isNotEmpty) {
+      return raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return null;
+  }
+
+  static double? _asDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
+  static int? _asInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
+  static bool? _asBool(dynamic v) {
+    if (v == null) return null;
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = v.toString().toLowerCase();
+    if (s == 'true' || s == '1' || s == 'yes') return true;
+    if (s == 'false' || s == '0' || s == 'no') return false;
+    return null;
   }
 
   Map<String, dynamic> toJson() => {

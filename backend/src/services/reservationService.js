@@ -1,4 +1,4 @@
-const { getPool, withTransaction } = require('../db');
+const { getPool, withTransaction, getServiceSupabase } = require('../db');
 const config = require('../config');
 
 /**
@@ -66,10 +66,46 @@ class ReservationService {
   }
 
   async expireStale() {
-    const { rows } = await getPool().query(
-      `select public.expire_stale_reservations() as result`,
-    );
-    return rows[0]?.result;
+    // 1) Postgres direct (DATABASE_URL)
+    if (config.databaseUrl) {
+      try {
+        const { rows } = await getPool().query(
+          `select public.expire_stale_reservations() as result`,
+        );
+        return rows[0]?.result;
+      } catch (err) {
+        // 2) Fallback RPC Supabase (si le host db.* est IPv6-only / injoignable)
+        try {
+          const sb = getServiceSupabase();
+          const { data, error } = await sb.rpc('expire_stale_reservations');
+          if (error) throw error;
+          return data;
+        } catch (rpcErr) {
+          // Dernier recours : client anon (fonction SECURITY DEFINER)
+          if (config.supabaseUrl && config.supabaseAnonKey) {
+            const { createClient } = require('@supabase/supabase-js');
+            const sb = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+              auth: { persistSession: false, autoRefreshToken: false },
+            });
+            const { data, error } = await sb.rpc('expire_stale_reservations');
+            if (error) throw new Error(`${err.message} | rpc: ${error.message}`);
+            return data;
+          }
+          throw err;
+        }
+      }
+    }
+
+    if (!config.supabaseUrl || !config.supabaseAnonKey) {
+      throw new Error('DATABASE_URL manquant — requis pour les transactions stock');
+    }
+    const { createClient } = require('@supabase/supabase-js');
+    const sb = createClient(config.supabaseUrl, config.supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await sb.rpc('expire_stale_reservations');
+    if (error) throw error;
+    return data;
   }
 
   /**

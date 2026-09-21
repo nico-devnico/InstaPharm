@@ -1,5 +1,4 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/coordinates.dart';
 import '../models/enums.dart';
 import '../models/inventory.dart';
 import '../models/medicine.dart';
@@ -149,21 +148,32 @@ class PlatformPharmacyRepository {
   }
 
   Future<List<Medicine>> listMedicines({String? query}) async {
-    if (query == null || query.trim().isEmpty) {
-      final rows = await _db.from('medicines').select().order('name').limit(80);
-      return (rows as List)
-          .map((e) => Medicine.fromJson(_medMap(e as Map)))
-          .toList();
+    // Uniquement médicaments déjà en stock chez une pharmacie plateforme active
+    try {
+      dynamic q = _db
+          .from('medicines')
+          .select(
+            '*, inventory!inner(pharmacy_id, pharmacies!inner(is_platform, is_active))',
+          )
+          .eq('inventory.pharmacies.is_platform', true)
+          .eq('inventory.pharmacies.is_active', true);
+      if (query != null && query.trim().isNotEmpty) {
+        final t = query.trim();
+        q = q.or('name.ilike.%$t%,brand.ilike.%$t%,category.ilike.%$t%');
+      }
+      final rows = await q.order('name').limit(80);
+      final seen = <String>{};
+      final list = <Medicine>[];
+      for (final raw in rows as List) {
+        final e = Map<String, dynamic>.from(raw as Map);
+        final id = e['id']?.toString() ?? '';
+        if (id.isEmpty || !seen.add(id)) continue;
+        list.add(Medicine.fromJson(_medMap(e)));
+      }
+      return list;
+    } catch (_) {
+      return const [];
     }
-    final q = query.trim();
-    final rows = await _db
-        .from('medicines')
-        .select()
-        .or('name.ilike.%$q%,brand.ilike.%$q%,category.ilike.%$q%')
-        .limit(40);
-    return (rows as List)
-        .map((e) => Medicine.fromJson(_medMap(e as Map)))
-        .toList();
   }
 
   Future<Medicine> addMedicine({
@@ -340,23 +350,9 @@ class PlatformPharmacyRepository {
     );
   }
 
-  /// Remplit le stock d’une pharmacie avec tout le catalogue (admin).
+  /// Remplit le stock d’une pharmacie avec tout le catalogue (désactivé : plus de seeds).
   Future<int> seedCatalogInventory(String pharmacyId) async {
-    final meds = await listMedicines();
-    var n = 0;
-    for (final m in meds) {
-      await upsertInventory(
-        pharmacyId: pharmacyId,
-        medicineId: m.id,
-        medicineVariantId: m.id,
-        status: StockStatus.available,
-        quantity: 20,
-        unitPriceXaf: m.priceXaf ?? 1000,
-        stockSource: StockSource.manual,
-      );
-      n++;
-    }
-    return n;
+    return 0;
   }
 
   /// Recherche principale : médicament → toutes les bases inventaire plateforme.
@@ -520,30 +516,14 @@ class PlatformPharmacyRepository {
   }
 
   Pharmacy _pharmacyFromRow(Map<String, dynamic> e) {
-    return Pharmacy(
-      id: e['id']?.toString() ?? '',
-      name: e['name']?.toString() ?? '',
-      address: e['address']?.toString(),
-      city: e['city']?.toString(),
-      postalCode: e['postal_code']?.toString(),
-      coordinates: (e['latitude'] != null && e['longitude'] != null)
-          ? Coordinates(
-              latitude: (e['latitude'] as num).toDouble(),
-              longitude: (e['longitude'] as num).toDouble(),
-            )
-          : null,
-      phone: e['phone']?.toString(),
-      email: e['email']?.toString(),
-      website: e['website']?.toString(),
-      rating: (e['rating'] as num?)?.toDouble(),
-      reviewCount: e['review_count'] as int?,
-      isDuty: e['is_duty'] as bool? ?? false,
-      isOpen: e['is_open'] as bool? ?? true,
-      services: (e['services'] as List?)?.map((s) => s.toString()).toList(),
-      isVerified: e['is_verified'] as bool? ?? e['is_platform'] as bool? ?? true,
-      isPlatform: e['is_platform'] as bool? ?? true,
-      ownerUserId: e['owner_user_id']?.toString(),
-    );
+    // Délègue au parseur robuste (évite page blanche sur cast JSON)
+    return Pharmacy.fromJson({
+      ...e,
+      'is_platform': e['is_platform'] ?? true,
+      'is_verified': e['is_verified'] ?? e['is_platform'] ?? true,
+      'is_duty': e['is_duty'] ?? false,
+      'is_open': e['is_open'] ?? true,
+    });
   }
 
   Map<String, dynamic> _medMap(Map e) => {

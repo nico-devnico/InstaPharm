@@ -261,6 +261,64 @@ class AdminService {
     return { ok: true };
   }
 
+  /** Suppression réelle (profil + auth.users) — jamais soft-delete. */
+  async deleteUser(actorId, userId, ip) {
+    await this.assertAdmin(actorId);
+    if (actorId === userId) {
+      const err = new Error('CANNOT_DELETE_SELF');
+      err.code = 'CANNOT_DELETE_SELF';
+      throw err;
+    }
+
+    const { rows } = await getPool().query(
+      `select id, email, role from public.profiles where id = $1`,
+      [userId],
+    );
+    const target = rows[0];
+    if (!target) {
+      const err = new Error('NOT_FOUND');
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+    if (
+      String(target.email || '').trim().toLowerCase() === 'nicodevnico@gmail.com'
+    ) {
+      const err = new Error('SUPER_ADMIN_PROTECTED');
+      err.code = 'SUPER_ADMIN_PROTECTED';
+      throw err;
+    }
+
+    // 1) Auth Admin API (hard delete)
+    let authDeleted = false;
+    try {
+      const sb = getServiceSupabase();
+      const { error } = await sb.auth.admin.deleteUser(userId);
+      if (!error) authDeleted = true;
+    } catch (_) {
+      authDeleted = false;
+    }
+
+    // 2) Profil + auth.users via SQL (si Auth API indispo ou profil orphelin)
+    await getPool().query(`delete from public.profiles where id = $1`, [userId]);
+    if (!authDeleted) {
+      try {
+        await getPool().query(`delete from auth.users where id = $1`, [userId]);
+      } catch (_) {
+        /* rôle DB peut ne pas avoir accès à auth.users */
+      }
+    }
+
+    await writeAudit(null, {
+      actorId,
+      action: 'DELETE_USER',
+      resourceType: 'profile',
+      resourceId: userId,
+      meta: { email: target.email, hard: true, via_auth_api: authDeleted },
+      ip,
+    });
+    return { ok: true, deleted: userId };
+  }
+
   async getUserDetail(actorId, userId) {
     await this.assertAdmin(actorId);
     const { rows } = await getPool().query(
