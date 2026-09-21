@@ -6,6 +6,7 @@ import '../../core/theme/app_typography.dart';
 import '../../core/utils/currency.dart';
 import '../../core/utils/responsive.dart';
 import '../../services/admin_repository.dart';
+import 'admin_form_helpers.dart';
 import 'admin_widgets.dart';
 
 class AdminMedicinesPage extends ConsumerStatefulWidget {
@@ -307,72 +308,171 @@ class _MedicineFormDialogState extends State<_MedicineFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.existing == null ? 'Nouveau médicament' : 'Modifier médicament',
+    final h = MediaQuery.sizeOf(context).height;
+    final w = MediaQuery.sizeOf(context).width;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: w < 420 ? 12 : 24,
+        vertical: 24,
       ),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Nom'),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Requis' : null,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 520, maxHeight: h * 0.88),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryBlue.withValues(alpha: 0.10),
+                    AppColors.accentGreen.withValues(alpha: 0.06),
+                  ],
                 ),
-                TextFormField(
-                  controller: _brand,
-                  decoration: const InputDecoration(labelText: 'Marque'),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
                 ),
-                TextFormField(
-                  controller: _dosage,
-                  decoration: const InputDecoration(labelText: 'Dosage'),
-                ),
-                TextFormField(
-                  controller: _form,
-                  decoration: const InputDecoration(labelText: 'Forme'),
-                ),
-                TextFormField(
-                  controller: _category,
-                  decoration: const InputDecoration(labelText: 'Catégorie'),
-                ),
-                TextFormField(
-                  controller: _price,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Prix (XAF)'),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Ordonnance requise'),
-                  value: _rx,
-                  onChanged: (v) => setState(() => _rx = v),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Actif'),
-                  value: _active,
-                  onChanged: (v) => setState(() => _active = v),
-                ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.medication_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.existing == null
+                          ? 'Nouveau médicament'
+                          : 'Modifier médicament',
+                      style: AppTypography.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      adminFormSection('Identité'),
+                      TextFormField(
+                        controller: _name,
+                        decoration: adminFieldDecoration(
+                          'Nom *',
+                          prefixIcon: Icons.medication_liquid_rounded,
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Requis' : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _brand,
+                        decoration: adminFieldDecoration(
+                          'Marque',
+                          prefixIcon: Icons.storefront_outlined,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _dosage,
+                              decoration: adminFieldDecoration('Dosage'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _form,
+                              decoration: adminFieldDecoration('Forme'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _category,
+                        decoration: adminFieldDecoration(
+                          'Catégorie',
+                          prefixIcon: Icons.category_outlined,
+                        ),
+                      ),
+                      adminFormSection('Tarif & statut'),
+                      TextFormField(
+                        controller: _price,
+                        keyboardType: TextInputType.number,
+                        decoration: adminFieldDecoration(
+                          'Prix (XAF)',
+                          prefixIcon: Icons.payments_outlined,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      adminSwitchTile(
+                        title: 'Ordonnance requise',
+                        subtitle: 'Médicament sous prescription',
+                        icon: Icons.receipt_long_outlined,
+                        value: _rx,
+                        onChanged: (v) => setState(() => _rx = v),
+                      ),
+                      adminSwitchTile(
+                        title: 'Actif dans le catalogue',
+                        icon: Icons.toggle_on_outlined,
+                        value: _active,
+                        onChanged: (v) => setState(() => _active = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.pop(context),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(
+                        _saving ? 'Enregistrement…' : 'Enregistrer',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
-        ),
-      ],
     );
   }
 }

@@ -63,11 +63,29 @@ class AuthService {
   Future<AuthResponse> signIn({
     required String email,
     required String password,
-  }) {
-    return _db.auth.signInWithPassword(
+  }) async {
+    final res = await _db.auth.signInWithPassword(
       email: email.trim(),
       password: password,
     );
+    // Refuse immédiatement un compte suspendu
+    final uid = res.user?.id ?? _db.auth.currentUser?.id;
+    if (uid != null) {
+      final row = await _db
+          .from('profiles')
+          .select('is_active, disabled_reason')
+          .eq('id', uid)
+          .maybeSingle();
+      if (row != null && row['is_active'] == false) {
+        await signOut();
+        throw Exception(
+          row['disabled_reason']?.toString().isNotEmpty == true
+              ? row['disabled_reason'].toString()
+              : 'Compte suspendu. Contactez le support InstaPharm.',
+        );
+      }
+    }
+    return res;
   }
 
   Future<void> signOut() => _db.auth.signOut();

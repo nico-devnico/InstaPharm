@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/responsive.dart';
 import '../../services/admin_repository.dart';
+import 'admin_form_helpers.dart';
 import 'admin_widgets.dart';
 
 class AdminPharmaciesPage extends ConsumerStatefulWidget {
@@ -418,6 +419,22 @@ class _PharmacyFormDialogState extends State<_PharmacyFormDialog> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final lat = double.tryParse(_lat.text.replaceAll(',', '.'));
+    final lng = double.tryParse(_lng.text.replaceAll(',', '.'));
+    if (lat == null || lng == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Latitude et longitude GPS obligatoires'),
+        ),
+      );
+      return;
+    }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coordonnées GPS hors plage valide')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await AdminRepository.instance.upsertPharmacy({
@@ -426,8 +443,8 @@ class _PharmacyFormDialogState extends State<_PharmacyFormDialog> {
         'city': _city.text.trim(),
         'address': _address.text.trim(),
         'phone': _phone.text.trim(),
-        'latitude': double.tryParse(_lat.text.replaceAll(',', '.')),
-        'longitude': double.tryParse(_lng.text.replaceAll(',', '.')),
+        'latitude': lat,
+        'longitude': lng,
         'platform_status': _status,
       });
       if (mounted) Navigator.pop(context, true);
@@ -444,91 +461,213 @@ class _PharmacyFormDialogState extends State<_PharmacyFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(
-        widget.existing == null ? 'Nouvelle pharmacie' : 'Modifier pharmacie',
+    final h = MediaQuery.sizeOf(context).height;
+    final w = MediaQuery.sizeOf(context).width;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: w < 420 ? 12 : 24,
+        vertical: 24,
       ),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Nom'),
-                  validator: (v) =>
-                      (v == null || v.trim().length < 2) ? 'Requis' : null,
-                ),
-                TextFormField(
-                  controller: _city,
-                  decoration: const InputDecoration(labelText: 'Ville'),
-                ),
-                TextFormField(
-                  controller: _address,
-                  decoration: const InputDecoration(labelText: 'Adresse'),
-                ),
-                TextFormField(
-                  controller: _phone,
-                  decoration: const InputDecoration(labelText: 'Téléphone'),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _lat,
-                        decoration:
-                            const InputDecoration(labelText: 'Latitude'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _lng,
-                        decoration:
-                            const InputDecoration(labelText: 'Longitude'),
-                      ),
-                    ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 520, maxHeight: h * 0.88),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryBlue.withValues(alpha: 0.10),
+                    AppColors.accentGreen.withValues(alpha: 0.06),
                   ],
                 ),
-                DropdownButtonFormField<String>(
-                  // ignore: deprecated_member_use
-                  value: _status,
-                  decoration: const InputDecoration(labelText: 'Statut'),
-                  items: const [
-                    DropdownMenuItem(value: 'PENDING', child: Text('PENDING')),
-                    DropdownMenuItem(
-                      value: 'VERIFIED',
-                      child: Text('VERIFIED'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'REJECTED',
-                      child: Text('REJECTED'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'SUSPENDED',
-                      child: Text('SUSPENDED'),
-                    ),
-                  ],
-                  onChanged: (v) => setState(() => _status = v ?? _status),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
                 ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.local_pharmacy_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.existing == null
+                          ? 'Nouvelle pharmacie'
+                          : 'Modifier pharmacie',
+                      style: AppTypography.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      adminFormSection('Informations'),
+                      TextFormField(
+                        controller: _name,
+                        decoration: adminFieldDecoration(
+                          'Nom *',
+                          prefixIcon: Icons.store_rounded,
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().length < 2)
+                                ? 'Requis'
+                                : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _city,
+                        decoration: adminFieldDecoration(
+                          'Ville',
+                          prefixIcon: Icons.location_city_outlined,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _address,
+                        decoration: adminFieldDecoration(
+                          'Adresse',
+                          prefixIcon: Icons.place_outlined,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _phone,
+                        decoration: adminFieldDecoration(
+                          'Téléphone',
+                          prefixIcon: Icons.phone_outlined,
+                        ),
+                      ),
+                      adminFormSection(
+                        'Position GPS (carte)',
+                        hint:
+                            'Obligatoire : l’icône apparaît sur la carte pour tous les utilisateurs',
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _lat,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                                signed: true,
+                              ),
+                              decoration: adminFieldDecoration('Latitude *'),
+                              validator: (v) => double.tryParse(
+                                        (v ?? '').replaceAll(',', '.'),
+                                      ) ==
+                                      null
+                                  ? 'GPS'
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _lng,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                decimal: true,
+                                signed: true,
+                              ),
+                              decoration: adminFieldDecoration('Longitude *'),
+                              validator: (v) => double.tryParse(
+                                        (v ?? '').replaceAll(',', '.'),
+                                      ) ==
+                                      null
+                                  ? 'GPS'
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        // ignore: deprecated_member_use
+                        value: _status,
+                        decoration: adminFieldDecoration(
+                          'Statut plateforme',
+                          prefixIcon: Icons.verified_outlined,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'PENDING',
+                            child: Text('PENDING'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'VERIFIED',
+                            child: Text('VERIFIED'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'REJECTED',
+                            child: Text('REJECTED'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'SUSPENDED',
+                            child: Text('SUSPENDED'),
+                          ),
+                        ],
+                        onChanged: (v) =>
+                            setState(() => _status = v ?? _status),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed:
+                        _saving ? null : () => Navigator.pop(context),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: Text(
+                        _saving ? 'Enregistrement…' : 'Enregistrer',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? 'Enregistrement…' : 'Enregistrer'),
-        ),
-      ],
     );
   }
 }

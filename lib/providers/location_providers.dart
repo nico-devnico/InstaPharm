@@ -178,13 +178,19 @@ final nearbyPharmaciesProvider =
     );
   }
 
-  // Résultats déjà trouvés et rayon non augmenté → ne pas relancer.
+  // Résultats déjà trouvés et rayon non augmenté → filtre local + merge plateforme.
   if (forceToken == 0 &&
       sameArea &&
       cache.pharmacies.isNotEmpty &&
       radiusKm <= cache.radiusKm + 0.05) {
+    final merged = await _mergeFreshPlatform(
+      cache.pharmacies,
+      bucket.latitude,
+      bucket.longitude,
+    );
+    cache.pharmacies = _sortPharmacies(merged);
     return NearbyPharmaciesResult(
-      pharmacies: _sortPharmacies(cache.pharmacies),
+      pharmacies: cache.pharmacies,
       radiusKm: cache.radiusKm,
     );
   }

@@ -35,14 +35,14 @@ class Medicine extends Equatable {
 
   factory Medicine.fromJson(Map<String, dynamic> json) {
     return Medicine(
-      id: json['id'] as String? ?? json['uuid'] as String? ?? '',
-      name: json['name'] as String? ?? '',
-      brand: json['brand'] as String?,
-      dosage: json['dosage'] as String?,
-      form: json['form'] as String?,
-      category: json['category'] as String?,
-      description: json['description'] as String?,
-      imageUrl: json['image_url'] as String?,
+      id: json['id']?.toString() ?? json['uuid']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      brand: json['brand']?.toString(),
+      dosage: json['dosage']?.toString(),
+      form: json['form']?.toString(),
+      category: json['category']?.toString(),
+      description: json['description']?.toString(),
+      imageUrl: json['image_url']?.toString(),
       requiresPrescription: json['requires_prescription'] as bool?,
       priceXaf: (json['price_xaf'] as num?)?.toInt() ??
           (json['price'] as num?)?.toInt(),

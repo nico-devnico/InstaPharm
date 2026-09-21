@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../core/utils/responsive.dart';
 import '../../services/admin_repository.dart';
+import 'admin_form_helpers.dart';
 import 'admin_widgets.dart';
 
 class AdminUsersPage extends ConsumerStatefulWidget {
@@ -742,93 +743,182 @@ class _CreateUserDialogState extends State<_CreateUserDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Ajouter un utilisateur'),
-      content: SizedBox(
-        width: 420,
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: _name,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom complet *',
-                    filled: true,
-                  ),
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Requis' : null,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'E-mail *',
-                    filled: true,
-                  ),
-                  validator: (v) =>
-                      (v == null || !v.contains('@')) ? 'E-mail invalide' : null,
-                ),
-                const SizedBox(height: 10),
-                TextFormField(
-                  controller: _phone,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Téléphone',
-                    filled: true,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  // ignore: deprecated_member_use
-                  value: _role,
-                  decoration: const InputDecoration(labelText: 'Rôle'),
-                  items: const [
-                    DropdownMenuItem(value: 'patient', child: Text('CLIENT')),
-                    DropdownMenuItem(
-                      value: 'pharmacist',
-                      child: Text('PHARMACIEN'),
-                    ),
-                    DropdownMenuItem(value: 'courier', child: Text('LIVREUR')),
-                    DropdownMenuItem(value: 'admin', child: Text('ADMIN')),
+    final h = MediaQuery.sizeOf(context).height;
+    final w = MediaQuery.sizeOf(context).width;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: w < 420 ? 12 : 24,
+        vertical: 24,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: 520, maxHeight: h * 0.88),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryBlue.withValues(alpha: 0.10),
+                    AppColors.accentOrange.withValues(alpha: 0.08),
                   ],
-                  onChanged: (v) {
-                    if (v != null) setState(() => _role = v);
-                  },
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Si l’API admin n’est pas configurée, la personne doit '
-                  's’inscrire dans l’app ; vous pourrez ensuite gérer son compte.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.person_add_alt_1_rounded,
+                      color: AppColors.primaryBlue,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Ajouter un utilisateur',
+                      style: AppTypography.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      adminFormSection('Profil'),
+                      TextFormField(
+                        controller: _name,
+                        decoration: adminFieldDecoration(
+                          'Nom complet *',
+                          prefixIcon: Icons.badge_outlined,
+                        ),
+                        validator: (v) =>
+                            (v == null || v.trim().isEmpty) ? 'Requis' : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: adminFieldDecoration(
+                          'E-mail *',
+                          prefixIcon: Icons.email_outlined,
+                        ),
+                        validator: (v) =>
+                            (v == null || !v.contains('@'))
+                                ? 'E-mail invalide'
+                                : null,
+                      ),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                        controller: _phone,
+                        keyboardType: TextInputType.phone,
+                        decoration: adminFieldDecoration(
+                          'Téléphone',
+                          prefixIcon: Icons.phone_outlined,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        // ignore: deprecated_member_use
+                        value: _role,
+                        decoration: adminFieldDecoration(
+                          'Rôle',
+                          prefixIcon: Icons.manage_accounts_outlined,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'patient',
+                            child: Text('CLIENT'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'pharmacist',
+                            child: Text('PHARMACIEN'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'courier',
+                            child: Text('LIVREUR'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'admin',
+                            child: Text('ADMIN'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setState(() => _role = v);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Si l’API admin n’est pas configurée, la personne doit '
+                        's’inscrire dans l’app ; vous pourrez ensuite gérer son compte.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  TextButton(
+                    onPressed: _saving
+                        ? null
+                        : () => Navigator.pop(context, false),
+                    child: const Text('Annuler'),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.person_add_rounded, size: 18),
+                      label: Text(_saving ? 'Création…' : 'Créer'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.pop(context, false),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Créer'),
-        ),
-      ],
     );
   }
 }

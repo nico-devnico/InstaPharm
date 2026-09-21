@@ -496,8 +496,11 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget> {
 
   Marker _buildMarker(Pharmacy p) {
     final isSelected = widget.selectedPharmacyId == p.id;
-    final color = _getColor(p.status);
-    final size = isSelected ? 44.0 : 34.0;
+    final isPlatform = p.isPlatform;
+    final color = isPlatform
+        ? AppColors.accentGreen
+        : _getColor(p.status);
+    final size = isSelected ? 46.0 : (isPlatform ? 40.0 : 34.0);
 
     return Marker(
       point: LatLng(p.coordinates!.latitude, p.coordinates!.longitude),
@@ -512,20 +515,22 @@ class _PharmacyMapWidgetState extends State<PharmacyMapWidget> {
             shape: BoxShape.circle,
             border: Border.all(
               color: isSelected ? color : Colors.white,
-              width: isSelected ? 2.5 : 2,
+              width: isSelected ? 2.5 : 2.2,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.18),
-                blurRadius: 6,
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: isPlatform ? 8 : 6,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
           child: Icon(
-            Icons.local_pharmacy_rounded,
+            isPlatform
+                ? Icons.local_pharmacy_rounded
+                : Icons.local_pharmacy_outlined,
             color: isSelected ? color : Colors.white,
-            size: isSelected ? 22 : 17,
+            size: isSelected ? 24 : (isPlatform ? 20 : 17),
           ),
         ),
       ),

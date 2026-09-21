@@ -73,6 +73,37 @@ router.patch('/users/:id', async (req, res) => {
   }
 });
 
+router.post('/users/:id/suspend', async (req, res) => {
+  try {
+    const data = await adminService.updateUser(
+      req.user.id,
+      req.params.id,
+      {
+        is_active: false,
+        disabled_reason: req.body?.reason || 'Suspendu par admin',
+      },
+      clientIp(req),
+    );
+    return res.json(data);
+  } catch (err) {
+    return handle(err, res);
+  }
+});
+
+router.post('/users/:id/activate', async (req, res) => {
+  try {
+    const data = await adminService.updateUser(
+      req.user.id,
+      req.params.id,
+      { is_active: true, disabled_reason: null },
+      clientIp(req),
+    );
+    return res.json(data);
+  } catch (err) {
+    return handle(err, res);
+  }
+});
+
 router.delete('/users/:id', async (req, res) => {
   try {
     const data = await adminService.deleteUser(

@@ -250,6 +250,25 @@ class AdminService {
       `update public.profiles set ${sets.join(', ')} where id = $1`,
       [userId, ...values],
     );
+
+    // Suspension / réactivation : ban Auth pour empêcher toute session active
+    if (Object.prototype.hasOwnProperty.call(allowed, 'is_active')) {
+      try {
+        const sb = getServiceSupabase();
+        if (allowed.is_active === false) {
+          await sb.auth.admin.updateUserById(userId, {
+            ban_duration: '876000h',
+          });
+        } else {
+          await sb.auth.admin.updateUserById(userId, {
+            ban_duration: 'none',
+          });
+        }
+      } catch (_) {
+        /* service role optionnel — is_active reste la source de vérité app */
+      }
+    }
+
     await writeAudit(null, {
       actorId,
       action: 'UPDATE_USER',
@@ -401,8 +420,12 @@ class AdminService {
   async upsertPharmacy(actorId, data, ip) {
     await this.assertAdmin(actorId);
     const id = data.id || `plat-${Date.now()}-${Math.abs(hashCode(data.name || 'p'))}`;
-    const lat = data.latitude != null ? Number(data.latitude) : null;
-    const lng = data.longitude != null ? Number(data.longitude) : null;
+    const lat = data.latitude != null && data.latitude !== ''
+      ? Number(data.latitude)
+      : 4.0511; // Douala défaut
+    const lng = data.longitude != null && data.longitude !== ''
+      ? Number(data.longitude)
+      : 9.7679;
 
     await getPool().query(
       `insert into public.pharmacies (

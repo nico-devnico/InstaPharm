@@ -140,75 +140,37 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
 
   Widget _buildBody(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final pad = MediaQuery.paddingOf(context);
     final isNarrow = size.width < 380;
-    final isPhone = Responsive.isPhone(context);
+    final padH = Responsive.padH(context);
 
-    final mapMin = isNarrow ? 120.0 : 140.0;
-    final mapMax = isPhone ? 220.0 : 260.0;
-    var mapHeight = size.height * (widget.asPage ? 0.22 : 0.24);
-    if (mapHeight < mapMin) mapHeight = mapMin;
-    if (mapHeight > mapMax) mapHeight = mapMax;
-
-    final contentChildren = <Widget>[
-      _buildHeader(isNarrow),
-      const SizedBox(height: 12),
-      _buildRouteSummary(isNarrow),
-      const SizedBox(height: 12),
-      Align(
-        alignment: Responsive.useCompactControls(context)
-            ? Alignment.centerLeft
-            : Alignment.center,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: Responsive.useCompactControls(context)
-                ? 220
-                : double.infinity,
-          ),
-          child: SizedBox(
-            width: Responsive.useCompactControls(context)
-                ? null
-                : double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _openRoutePage,
-              icon: const Icon(Icons.map_rounded, size: 18),
-              label: const Text('Voir l’itinéraire'),
-              style: OutlinedButton.styleFrom(
-                padding: Responsive.actionButtonPadding(context),
-              ),
-            ),
-          ),
-        ),
-      ),
-      if (widget.medicine != null && widget.stockStatus != null) ...[
+    // Layout simple ListView (évite CustomScrollView + Expanded → page blanche)
+    final body = ListView(
+      padding: EdgeInsets.fromLTRB(padH, 0, padH, 24),
+      children: [
+        _buildMap(isNarrow ? 140.0 : 168.0, isNarrow),
+        const SizedBox(height: 14),
+        _buildHeader(isNarrow),
         const SizedBox(height: 12),
-        _buildStockCard(isNarrow),
-      ],
-      const SizedBox(height: 12),
-      _buildInfoCard(isNarrow),
-      const SizedBox(height: 12),
-      _buildHoursCard(isNarrow),
-      const SizedBox(height: 12),
-      _buildServicesCard(isNarrow),
-      const SizedBox(height: 8),
-      _buildReportLink(isNarrow),
-      const SizedBox(height: 8),
-    ];
-
-    final scroll = CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(child: _buildMap(mapHeight, isNarrow)),
-        SliverPadding(
-          padding: EdgeInsets.fromLTRB(
-            Responsive.padH(context),
-            12,
-            Responsive.padH(context),
-            16,
-          ),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate(contentChildren),
-          ),
+        _buildRouteSummary(isNarrow),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _openRoutePage,
+          icon: const Icon(Icons.map_rounded, size: 18),
+          label: const Text('Voir l’itinéraire'),
         ),
+        if (widget.medicine != null && widget.stockStatus != null) ...[
+          const SizedBox(height: 12),
+          _buildStockCard(isNarrow),
+        ],
+        const SizedBox(height: 12),
+        _buildInfoCard(isNarrow),
+        const SizedBox(height: 12),
+        _buildHoursCard(isNarrow),
+        const SizedBox(height: 12),
+        _buildServicesCard(isNarrow),
+        const SizedBox(height: 8),
+        _buildReportLink(isNarrow),
+        const SizedBox(height: 12),
       ],
     );
 
@@ -236,30 +198,21 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
             ),
           ),
         ),
-        body: ColoredBox(
-          color: AppColors.background,
-          child: Column(
-            children: [
-              Expanded(
-                child: DefaultTextStyle(
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                  ),
-                  child: scroll,
-                ),
-              ),
-              Material(
-                color: AppColors.surface,
-                elevation: 8,
-                child: _buildBottomActions(isNarrow),
-              ),
-            ],
-          ),
+        body: Column(
+          children: [
+            Expanded(child: body),
+            Material(
+              color: AppColors.surface,
+              elevation: 8,
+              child: _buildBottomActions(isNarrow),
+            ),
+          ],
         ),
       );
     }
 
+    final pad = MediaQuery.paddingOf(context);
+    final isPhone = Responsive.isPhone(context);
     final preferred = size.height * (isPhone ? 0.88 : 0.82);
     final sheetHeight = preferred.clamp(280.0, size.height - pad.top - 12);
     return SizedBox(
@@ -272,7 +225,7 @@ class _PharmacyDetailSheetState extends State<PharmacyDetailSheet> {
         child: Column(
           children: [
             _buildHandle(),
-            Expanded(child: scroll),
+            Expanded(child: body),
             _buildBottomActions(isNarrow),
           ],
         ),

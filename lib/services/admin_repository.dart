@@ -327,6 +327,12 @@ class AdminRepository {
       'is_active': false,
       if (reason != null) 'disabled_reason': reason,
     });
+    // Ban Auth via API (si backend dispo) pour invalider les sessions JWT
+    try {
+      await _api('POST', '/api/admin/users/$id/suspend', body: {
+        'reason': reason ?? 'Suspendu par admin',
+      });
+    } catch (_) {}
     await _audit('SUSPEND_USER', 'profile', id, {'reason': reason});
   }
 
@@ -335,6 +341,9 @@ class AdminRepository {
       'is_active': true,
       'disabled_reason': null,
     });
+    try {
+      await _api('POST', '/api/admin/users/$id/activate', body: {});
+    } catch (_) {}
     await _audit('ACTIVATE_USER', 'profile', id, {});
   }
 
@@ -453,41 +462,63 @@ class AdminRepository {
   }
 
   Future<String> upsertPharmacy(Map<String, dynamic> data) async {
-    final api = data['id'] != null
-        ? await _api('PUT', '/api/admin/pharmacies/${data['id']}', body: data)
-        : await _api('POST', '/api/admin/pharmacies', body: data);
-    if (api != null) return api['id']?.toString() ?? data['id']?.toString() ?? '';
+    final lat = _asCoord(data['latitude']) ?? CameroonDefaults.douala.latitude;
+    final lng = _asCoord(data['longitude']) ?? CameroonDefaults.douala.longitude;
+    final payload = Map<String, dynamic>.from(data)
+      ..['latitude'] = lat
+      ..['longitude'] = lng
+      ..['is_platform'] = true
+      ..['is_active'] = data['is_active'] ?? true
+      ..['platform_status'] = data['platform_status'] ?? 'VERIFIED';
 
-    final id = data['id']?.toString() ??
-        'plat-${DateTime.now().millisecondsSinceEpoch}-${(data['name'] ?? '').hashCode.abs()}';
+    // Toujours écrire dans Supabase (source de vérité carte pour tous les users)
+    final id = payload['id']?.toString() ??
+        'plat-${DateTime.now().millisecondsSinceEpoch}-${(payload['name'] ?? '').hashCode.abs()}';
     final row = {
       'id': id,
-      'name': data['name'],
-      'address': data['address'],
-      'city': data['city'],
-      'latitude': data['latitude'] ?? CameroonDefaults.douala.latitude,
-      'longitude': data['longitude'] ?? CameroonDefaults.douala.longitude,
-      'phone': data['phone'],
-      'email': data['email'],
-      'is_duty': data['is_duty'] ?? false,
-      'is_open': data['is_open'] ?? true,
-      'is_verified': (data['platform_status'] ?? 'VERIFIED') == 'VERIFIED',
+      'name': payload['name'],
+      'address': payload['address'],
+      'city': payload['city'],
+      'latitude': lat,
+      'longitude': lng,
+      'phone': payload['phone'],
+      'email': payload['email'],
+      'is_duty': payload['is_duty'] ?? false,
+      'is_open': payload['is_open'] ?? true,
+      'is_verified': (payload['platform_status'] ?? 'VERIFIED') == 'VERIFIED',
       'is_platform': true,
-      'services': data['services'] ?? ['Livraison'],
-      'platform_status': data['platform_status'] ?? 'VERIFIED',
-      'is_active': data['is_active'] ?? true,
-      'opening_hours': data['opening_hours'] ?? {},
-      'owner_user_id': data['owner_user_id'],
+      'services': payload['services'] ?? ['Livraison'],
+      'platform_status': payload['platform_status'] ?? 'VERIFIED',
+      'is_active': payload['is_active'] ?? true,
+      'opening_hours': payload['opening_hours'] ?? {},
+      'owner_user_id': payload['owner_user_id'],
       'registered_by': _db.auth.currentUser?.id,
     };
-    await _db.from('pharmacies').upsert(row);
+    await _db.from('pharmacies').upsert(row).select('id, latitude, longitude');
+
+    // Sync API Node (optionnel)
+    try {
+      payload['id'] = id;
+      if (data['id'] != null) {
+        await _api('PUT', '/api/admin/pharmacies/$id', body: payload);
+      } else {
+        await _api('POST', '/api/admin/pharmacies', body: payload);
+      }
+    } catch (_) {}
+
     await _audit(
       data['id'] != null ? 'UPDATE_PHARMACY' : 'CREATE_PHARMACY',
       'pharmacy',
       id,
-      {'name': data['name'], 'latitude': data['latitude'], 'longitude': data['longitude']},
+      {'name': payload['name'], 'latitude': lat, 'longitude': lng},
     );
     return id;
+  }
+
+  double? _asCoord(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString().replaceAll(',', '.'));
   }
 
   Future<void> updatePharmacyLocation(
@@ -495,16 +526,18 @@ class AdminRepository {
     required double latitude,
     required double longitude,
   }) async {
-    final api = await _api(
-      'PATCH',
-      '/api/admin/pharmacies/$id/location',
-      body: {'latitude': latitude, 'longitude': longitude},
-    );
-    if (api != null) return;
+    // Toujours Supabase d’abord (carte visible pour tous)
     await _db.from('pharmacies').update({
       'latitude': latitude,
       'longitude': longitude,
     }).eq('id', id);
+    try {
+      await _api(
+        'PATCH',
+        '/api/admin/pharmacies/$id/location',
+        body: {'latitude': latitude, 'longitude': longitude},
+      );
+    } catch (_) {}
     await _audit('UPDATE_PHARMACY_LOCATION', 'pharmacy', id, {
       'latitude': latitude,
       'longitude': longitude,

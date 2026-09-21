@@ -15,6 +15,7 @@ import 'screens/courier/courier_shell.dart';
 import 'screens/main_shell.dart';
 import 'screens/pharmacy/pharmacy_shell.dart';
 import 'services/admin_repository.dart';
+import 'services/auth_service.dart';
 import 'services/location_service.dart';
 import 'services/supabase_service.dart';
 
@@ -141,8 +142,28 @@ class AuthGate extends ConsumerStatefulWidget {
   ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends ConsumerState<AuthGate> {
+class _AuthGateState extends ConsumerState<AuthGate> with WidgetsBindingObserver {
   var _bootstrapTried = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-vérifie is_active (suspension admin pendant la session)
+      ref.invalidate(profileProvider);
+    }
+  }
 
   Future<void> _tryBootstrapAdmin() async {
     if (_bootstrapTried) return;
@@ -188,6 +209,16 @@ class _AuthGateState extends ConsumerState<AuthGate> {
             data: (user) {
               // Charger les paramètres globaux (frais, rayon, etc.)
               ref.watch(appConfigProvider);
+
+              // Compte suspendu → déconnexion forcée
+              if (user != null && user.isActive == false) {
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  await AuthService.instance.signOut();
+                  ref.invalidate(profileProvider);
+                });
+                return const _SuspendedAccountScreen();
+              }
+
               // Promouvoir automatiquement le premier compte connecté
               if (user != null && user.isAdmin != true && !_bootstrapTried) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -209,6 +240,52 @@ class _AuthGateState extends ConsumerState<AuthGate> {
         }
         return const AuthScreen();
       },
+    );
+  }
+}
+
+class _SuspendedAccountScreen extends StatelessWidget {
+  const _SuspendedAccountScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.block_rounded,
+                size: 56,
+                color: AppColors.error.withValues(alpha: 0.9),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Compte suspendu',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Votre accès à InstaPharm a été désactivé par un administrateur. '
+                'Contactez le support pour plus d’informations.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: () => AuthService.instance.signOut(),
+                child: const Text('Retour à la connexion'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

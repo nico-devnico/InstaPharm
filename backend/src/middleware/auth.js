@@ -35,6 +35,16 @@ async function requireAuth(req, res, next) {
       fullName: profile?.full_name,
       isActive: profile?.is_active !== false,
     };
+
+    // Compte suspendu : bloquer dès l’auth (pas seulement requireRole)
+    if (req.user.isActive === false) {
+      return res.status(403).json({
+        ok: false,
+        error: 'ACCOUNT_DISABLED',
+        message: 'Compte suspendu. Contactez le support.',
+      });
+    }
+
     return next();
   } catch (err) {
     return res.status(401).json({ ok: false, error: 'AUTH_FAILED', message: err.message });
